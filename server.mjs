@@ -1,7 +1,7 @@
 import express from "express"
 import cors from "cors"
 import { nanoid } from 'nanoid'
-
+import mongoose from "mongoose";
 
 const app = express();
 app.use(express.json());
@@ -10,8 +10,17 @@ app.use(cors());
 
 const port = process.env.PORT || 3000;
 
-
-let userBase = []; // TODO: replace this with mongoDB
+const userschema = new mongoose.Schema({ 
+    firstName: String, 
+    lastName: String,
+    email: String,
+    password: {type:String,required:true},
+    age: {type:Number,min:17, max:65,default:18},
+    subjects: Array,
+    isMarried: {type:Boolean,deault:false},
+    createdOn:{type: Date, default: Date.now },
+ });
+const userModel = mongoose.model('user', userschema);
 
 app.post("/signup", (req, res) => {
 
@@ -34,33 +43,30 @@ app.post("/signup", (req, res) => {
         return;
     }
 
-    let isFound = false;
-
-    for (let i = 0; i < userBase.length; i++) {
-        if (userBase[i].email === body.email.toLowerCase()) {
-            isFound = true;
-            break;
-        }
-    }
-    if (isFound) { // this email already exist
-        res.status(400).send({
-            message: `email ${body.email} already exist.`
-        });
-        return;
-    }
-
-
-    let newUser = {
-        userId: nanoid(),
+    let newUser = new userModel({
+        
         firstName: body.firstName,
         lastName: body.lastName,
         email: body.email.toLowerCase(),
         password: body.password
-    }
+    })
 
-    userBase.push(newUser);
+    newUser.save((err,result)=>{
+        if(!err){
+            //data saved
+            console.log("data saved:",result);
+            res.status(201).send({ message: "user is created" });
+            
+        }
+        else
+        {
+            console.log("db error:",err);
+            res.status(500).send({message:"internal server error"});
+        }
 
-    res.status(201).send({ message: "user is created" });
+    });
+
+    
 });
 
 app.post("/login", (req, res) => {
@@ -117,3 +123,32 @@ app.post("/login", (req, res) => {
 app.listen(port, () => {
     console.log(`Example app listening on port ${port}`)
 })
+
+
+
+///////////////////////////////////
+//mongoose.connect('mongodb+srv://abc:abc@cluster0.dcy08cl.mongodb.net/?retryWrites=true&w=majority');
+let dbURI = 'mongodb+srv://abc:abc@cluster0.dcy08cl.mongodb.net/socialmediaserver?retryWrites=true&w=majority';
+mongoose.connect(dbURI);
+
+////////////////mongodb connected disconnected events///////////////////////////////////////////////
+mongoose.connection.on('connected', function () {//connected
+    console.log("Mongoose is connected");
+});
+
+mongoose.connection.on('disconnected', function () {//disconnected
+    console.log("Mongoose is disconnected");
+    process.exit(1);
+});
+
+mongoose.connection.on('error', function (err) {//any error
+    console.log('Mongoose connection error: ', err);
+    process.exit(1);
+});
+process.on('SIGINT', function () {/////this function will run jst before app is closing
+    console.log("app is terminating");
+    mongoose.connection.close(function () {
+        console.log('Mongoose default connection closed');
+        process.exit(0);
+    });
+});
